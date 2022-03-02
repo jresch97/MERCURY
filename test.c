@@ -34,8 +34,8 @@ static void HG_any_tests()
         printf("-----------------------------------------------------------\n");
         printf("| any = HG_any();\n");
         any = HG_any();
-        printf("| assert(any != NULL);\n");
-        assert(any != NULL);
+        printf("| assert(any);\n");
+        assert(any);
         printf("| PASSED\n");
         printf("-----------------------------------------------------------\n");
         printf("| assert(HG_parse(\"abc\", any, &r));\n");
@@ -67,19 +67,33 @@ static void HG_any_tests()
         printf("| HG_err_free(r.e)\n");
         HG_efree(r.e);
         printf("| PASSED\n");
-        printf("-----------------------------------------------------------\n");
 }
 
 static void HG_char_tests()
 {
         HG_RESULT r;
         HG_PARSER a, b;
+        printf("-----------------------------------------------------------\n");
         printf("| HG_char_tests()\n");
         printf("-----------------------------------------------------------\n");
         a = HG_char('a'), b = HG_char('b');
         printf("| a = HG_char('a'), b = HG_char('b');\n");
+        assert(a);
+        printf("| assert(a);\n");
+        assert(b);
+        printf("| assert(b);\n");
+        printf("| PASSED\n");
+        printf("-----------------------------------------------------------\n");
         printf("| assert(HG_parse(\"abc\", a, &r));\n");
         assert(HG_parse("abc", a, &r));
+        printf("| r.v = \"%s\";\n", (char*)r.v);
+        printf("| free(r.v);\n");
+        free(r.v);
+        printf("| PASSED\n");
+        printf("-----------------------------------------------------------\n");
+        printf("| assert(HG_parse(\"b\", b, &r));\n");
+        assert(HG_parse("b", b, &r));
+        printf("| r.v = \"%s\";\n", (char*)r.v);
         printf("| free(r.v);\n");
         free(r.v);
         printf("| PASSED\n");

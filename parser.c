@@ -52,11 +52,11 @@
 #define HG_IN_READ(i)     (i->s.j < i->l ? i->b[i->s.j] : EOF)
 #define HG_IN_ADV(i)      ((HG_IN_READ(i) != HG_NL) ? i->s.j++ && i->s.c++ : \
                                 i->s.j++ && i->s.r++ && (i->s.c = i->s.t = 1))
-#define HG_IN_ADV_T(i, j) (i->s.t += j)
+#define HG_IN_TERM(i, j)  (i->s.t += j)
 #define HG_IN_ROW(i)      (i->s.r)
 #define HG_IN_COL(i)      (i->s.c)
 #define HG_IN_SAVE(i)     (i->p = i->s)
-#define HG_IN_RESTORE(i)  (i->s = i->p)
+#define HG_IN_RES(i)      (i->s = i->p)
 #define HG_IN_STATE(i)    (i->s)
 #define HG_STATE_INIT(s)  (s.j = 0, s.r = s.c = s.t = 1)
 
@@ -92,6 +92,17 @@ static int HG_pdigit(HG_PARSER p, HG_INPUT i, HG_RESULT *r);
 static int HG_pchar(HG_PARSER p, HG_INPUT i, HG_RESULT *r);
 static int HG_pstring(HG_PARSER p, HG_INPUT i, HG_RESULT *r);
 
+static char *HG_strcpy(const char *s, int *l)
+{
+        int m;
+        char *c;
+        m = strlen(s);
+        c = malloc(m + 1);
+        if (l) *l = m;
+        strcpy(c, s);
+        return c;
+}
+
 static char *HG_stof(const char *s)
 {
         char *r;
@@ -115,8 +126,18 @@ static char *HG_ctoa(char c)
 {
         char *s;
         s = malloc(2);
-        s[0] = c;
-        s[1] = '\0';
+        s[0] = c, s[1] = '\0';
+        return s;
+}
+
+static char *HG_fmtv(const char *f, va_list v)
+{
+        int l;
+        char *s, b[4096];
+        l = vsprintf(b, f, v);
+        if (l < 0) return NULL;
+        s = malloc(l + 1);
+        strcpy(s, b);
         return s;
 }
 
@@ -125,13 +146,11 @@ static HG_INPUT HG_isalloc(const char *s)
         HG_INPUT i;
         i = malloc(sizeof(*i));
         if (!i) return NULL;
-        i->l = strlen(s);
-        i->b = malloc(i->l + 1);
+        i->b = HG_strcpy(s, &i->l);
         if (!i->b) {
                 free(i);
                 return NULL;
         }
-        strcpy(i->b, s);
         i->f = HG_stof(s);
         if (!i->f) {
                 free(i);
@@ -139,7 +158,6 @@ static HG_INPUT HG_isalloc(const char *s)
                 return NULL;
         }
         HG_STATE_INIT(i->s);
-        HG_STATE_INIT(i->p);
         return i;
 }
 
@@ -148,6 +166,7 @@ static HG_INPUT HG_ifalloc(const char *n, FILE *f)
         HG_INPUT i;
         i = malloc(sizeof(*i));
         if (!i) return NULL;
+        i->f = HG_strcpy(n, NULL);
         /* TODO */
         return i;
 }
@@ -161,18 +180,15 @@ static void HG_in_free(HG_INPUT i)
 
 static HG_ERROR HG_ealloc(HG_INPUT i, const char *f, ...)
 {
-        int l;
-        va_list v;
         HG_ERROR e;
-        char b[512];
+        va_list v;
         e = malloc(sizeof(*e));
+        e->f = HG_strcpy(i->f, NULL);
+        if (!e->f) return NULL;
         va_start(v, f);
-        l = vsprintf(b, f, v);
+        e->m = HG_fmtv(f, v);
         va_end(v);
-        e->m = malloc(l + 1);
-        strcpy(e->m, b);
-        e->f = malloc(strlen(i->f) + 1);
-        strcpy(e->f, i->f);
+        if (!e->m) return NULL;
         e->s = HG_IN_STATE(i);
         return e;
 }
@@ -180,8 +196,7 @@ static HG_ERROR HG_ealloc(HG_INPUT i, const char *f, ...)
 void HG_eprint(HG_ERROR e)
 {
         fprintf(stderr, "\033[1m%s%s%d:%d-%d:\033[0m %s\n",
-                e->f != NULL && strlen(e->f) > 0 ? e->f : "",
-                e->f != NULL && strlen(e->f) > 0 ? ":"  : "",
+                e->f ? "" : e->f, e->f ? "" : ":",
                 e->s.r, e->s.c, e->s.t, e->m);
 }
 
@@ -266,7 +281,7 @@ int HG_pany(HG_PARSER p, HG_INPUT i, HG_RESULT *r)
         if (c != EOF) {
                 r->v = HG_ctoa(c);
                 HG_IN_ADV(i);
-                HG_IN_ADV_T(i, 1);
+                HG_IN_TERM(i, 1);
                 return 1;
         }
         r->e = HG_ealloc(i, HG_ANY_ERR_EOF);
@@ -290,12 +305,12 @@ int HG_pchar(HG_PARSER p, HG_INPUT i, HG_RESULT *r)
         if (c != EOF && c == HG_CHAR_C(p)) {
                 r->v = HG_ctoa(c);
                 HG_IN_ADV(i);
-                HG_IN_ADV_T(i, 1);
+                HG_IN_TERM(i, 1);
                 return 1;
         } else if (c == EOF) {
                 r->e = HG_ealloc(i, HG_CHAR_ERR_EOF, HG_CHAR_C(p));
         } else {
-                HG_IN_ADV_T(i, 1);
+                HG_IN_TERM(i, 1);
                 r->e = HG_ealloc(i, HG_CHAR_ERR, HG_CHAR_C(p), c);
         }
         return 0;
